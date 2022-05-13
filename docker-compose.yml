@@ -1,0 +1,36 @@
+version: "3"
+
+services:
+  django-app:
+    build:
+      context: ./django_app
+      dockerfile: Dockerfile
+    ports:
+    - 8000:8000
+    command: bash -c "python manage.py migrate && python manage.py collectstatic --noinput && python manage.py runserver 0.0.0.0:8000"
+    volumes:
+    - ./django_app:/code
+    env_file:
+      - .env
+  minio:
+    image: minio/minio:latest
+    ports:
+    - 9000:9000
+    - 9001:9001
+    environment:
+      MINIO_ACCESS_KEY: minio
+      MINIO_SECRET_KEY: minio123
+    command: server /data --console-address ":9001"
+
+  minio-client:
+    image: minio/mc:latest
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc config host rm expo;
+      /usr/bin/mc config host add --quiet --api s3v4 local http://minio:9000 minio minio123;
+      /usr/bin/mc rb --force local/bucket/;
+      /usr/bin/mc mb --quiet local/bucket/;
+      /usr/bin/mc policy set public local/bucket;
+      "
+    depends_on:
+      - minio
